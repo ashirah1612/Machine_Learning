@@ -29,8 +29,8 @@ def gradient_descent(m_now, b_now, points, L):
         prediction = m_now * x + b_now
         error = y - prediction
 
-        m_gradient += -(2 / n) * x * error
-        b_gradient += -(2 / n) * error
+        m_gradient += -(2 / n)*x*error
+        b_gradient += -(2 / n)*error
 
     m = m_now - L * m_gradient
     b = b_now - L * b_gradient
