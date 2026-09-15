@@ -1,0 +1,151 @@
+import numpy as np
+import pandas as pd
+
+df=pd.read_csv("K_means_clustering/Mall_Customers.csv")
+X=df[["Annual Income (k$)","Spending Score (1-100)"]].values.astype(float)
+
+mean=np.mean(X,axis=0)
+std=np.std(X,axis=0)
+X_scaled=(X-mean)/std
+
+def euclidean_distance(point,centroid):
+    return np.sqrt(np.sum((point-centroid)**2))
+
+def assigned_clusters(X,centroids):
+    clusters=[]
+    for point in X:
+        distances=[]
+        for centroid in centroids:
+            distance=euclidean_distance(point,centroid)
+            distances.append(distance)
+        cluster=np.argmin(distances)
+        clusters.append(cluster)
+    return np.array(clusters)
+
+def update_centroids(X,clusters,k):
+    centroids=[]
+    for i in range(k):
+        points=X[clusters==i]
+        centroid=np.mean(points,axis=0)
+        centroids.append(centroid)
+    return np.array(centroids)
+
+def calculate_wcss(X,clusters,centroids):
+    wcss=0
+    for i in range(len(X)):
+        distance=euclidean_distance(X[i],centroids[clusters[i]])
+        wcss+=distance**2
+    return wcss
+
+def kmeans(X,k,max_iter=100):
+    np.random.seed(42)
+    indices=np.random.choice(len(X),k,replace=False)
+    centroids=X[indices].copy()
+
+    for iterations in range(max_iter):
+        clusters=assigned_clusters(X,centroids)
+        new_centroids=update_centroids(X,clusters,k)
+        if np.allclose(centroids,new_centroids):
+            break
+
+        centroids=new_centroids
+
+    wcss=calculate_wcss(X,clusters,centroids)
+
+    return clusters,centroids,wcss,iterations+1
+
+def silhouette_score(X,clusters):
+    scores=[]
+
+    for i in range(len(X)):
+        own_cluster=clusters[i]
+        own_points=X[clusters==own_cluster]
+
+        if len(own_points)>1:
+            distances=[]
+            for point in own_points:
+                distances.append(euclidean_distance(X[i],point))
+            a=np.mean(distances)
+        else:
+            a=0
+
+        other_cluster_distances=[]
+
+        for cluster in np.unique(clusters):
+            if cluster==own_cluster:
+                continue
+
+            other_points=X[clusters==cluster]
+            distances=[]
+
+            for point in other_points:
+                distances.append(euclidean_distance(X[i],point))
+
+            other_cluster_distances.append(np.mean(distances))
+
+        b=min(other_cluster_distances)
+
+        if a==b:
+            s=0
+        else:
+            s=(b-a)/max(a,b)
+
+        scores.append(s)
+
+    return np.mean(scores)
+
+wcss_values=[]
+
+for k in range(1,9):
+    clusters,centroids,wcss,iteration=kmeans(X_scaled,k)
+    wcss_values.append(wcss)
+    print("K =",k,"WCSS =",round(wcss,2))
+
+clusters,centroids,wcss,iterations=kmeans(X_scaled,k)
+
+silhouette=silhouette_score(X_scaled,clusters)
+
+df["Cluster"]=clusters
+
+cluster_names={}
+for i in range(k):
+    income_mean=df.loc[df["Cluster"]==i,"Annual Income (k$)"].mean()
+    spending_mean=df.loc[df["Cluster"]==i,"Spending Score (1-100)"].mean()
+
+    if income_mean<df["Annual Income (k$)"].mean() and spending_mean<df["Spending Score (1-100)"].mean():
+        name="Low Income - Low Spending"
+    elif income_mean<df["Annual Income (k$)"].mean() and spending_mean>=df["Spending Score (1-100)"].mean():
+        name="Low Income - High Spending"
+    elif income_mean>=df["Annual Income (k$)"].mean() and spending_mean<df["Spending Score (1-100)"].mean():
+        name="High Income - Low Spending"
+    else:
+        name="High Income - High Spending"
+
+    cluster_names[i]=name
+
+df["Cluster Name"]=df["Cluster"].map(cluster_names)
+
+print("\nFinal Centroids:")
+
+for i in range(k):
+    original_centroid=centroids[i]*std+mean
+    print("Cluster",i,": Income =",round(original_centroid[0],2),"Spending =",round(original_centroid[1],2))
+
+print("\nIterations:",iterations)
+print("Final WCSS:",round(wcss,2))
+print("Silhouette Score:",round(silhouette,3))
+
+print("\nCustomer Clusters:")
+print(df[["CustomerID","Age","Annual Income (k$)","Spending Score (1-100)","Cluster","Cluster Name"]].to_string(index=False))
+
+new_customer=np.array([[25,70]],dtype=float)
+new_customer_scaled=(new_customer-mean)/std
+
+new_cluster=assigned_clusters(new_customer_scaled,centroids)[0]
+
+print("\nNew Customer")
+print("Age:",25)
+print("Annual Income:",70)
+print("Spending Score:",70)
+print("Predicted Cluster:",new_cluster)
+print("Cluster Name:",cluster_names[new_cluster])
